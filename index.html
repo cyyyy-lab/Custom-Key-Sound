@@ -250,24 +250,30 @@
 </div>
 
 <script>
-    // 預設測試文本 (可替換為任意英文短句或程式碼)
     const sampleTexts = [
         "quick brown fox jumps over the lazy dog near the mechanical keyboard workstation.",
         "rapid trigger technology allows competitive gamers to execute precise key presses effortlessly.",
         "custom mechanical switches deliver satisfying tactile feedback and crisp acoustic sound profiles."
     ];
 
-    // Web Audio API 聲音合成器 (無需外部 MP3 檔案)
     const AudioContext = window.AudioContext || window.webkitAudioContext;
     let audioCtx = null;
+    let noiseBuffer = null;
 
     function initAudio() {
         if (!audioCtx) {
             audioCtx = new AudioContext();
+            // 建立 0.05 秒白噪聲緩衝區（模擬塑料與金屬撞擊雜音）
+            const bufferSize = audioCtx.sampleRate * 0.05;
+            noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+            const output = noiseBuffer.getChannelData(0);
+            for (let i = 0; i < bufferSize; i++) {
+                output[i] = Math.random() * 2 - 1;
+            }
         }
     }
 
-    // 動態生成軸體聲音
+    // 物理建模音效引擎
     function playKeySound(type) {
         initAudio();
         if (audioCtx.state === 'suspended') {
@@ -275,43 +281,92 @@
         }
 
         const now = audioCtx.currentTime;
+        // 加入 ±5% 隨機音調與頻率微變，消除機械重複感
+        const randomPitch = 0.95 + Math.random() * 0.1;
+
+        // 1. 撞擊噪訊層 (Impact Noise)
+        const noise = audioCtx.createBufferSource();
+        noise.buffer = noiseBuffer;
+        noise.playbackRate.value = randomPitch;
+
+        const noiseFilter = audioCtx.createBiquadFilter();
+        const noiseGain = audioCtx.createGain();
+
+        // 2. 腔體共振層 (Housing Resonance / Thock)
         const osc = audioCtx.createOscillator();
-        const gain = audioCtx.createGain();
+        const oscGain = audioCtx.createGain();
 
-        osc.connect(gain);
-        gain.connect(audioCtx.destination);
+        noise.connect(noiseFilter);
+        noiseFilter.connect(noiseGain);
+        noiseGain.connect(audioCtx.destination);
 
-        if (type === 'clicky') {
-            // 青軸：高頻、脆皮雙重 Click 聲
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(1200, now);
-            osc.frequency.exponentialRampToValueAtTime(300, now + 0.03);
-            gain.gain.setValueAtTime(0.3, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.03);
-            osc.start(now);
-            osc.stop(now + 0.03);
-        } else if (type === 'linear') {
-            // 紅軸：低沉、沉穩的 Thock 觸底聲
+        osc.connect(oscGain);
+        oscGain.connect(audioCtx.destination);
+
+        if (type === 'linear') {
+            // ❤️ 紅軸 (Thock / 沉穩厚重)：低頻帶通噪訊 + 低頻波形共振
+            noiseFilter.type = 'bandpass';
+            noiseFilter.frequency.setValueAtTime(700 * randomPitch, now);
+            noiseFilter.Q.setValueAtTime(1.8, now);
+
+            noiseGain.gain.setValueAtTime(0.5, now);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
             osc.type = 'sine';
-            osc.frequency.setValueAtTime(180, now);
-            osc.frequency.exponentialRampToValueAtTime(60, now + 0.05);
-            gain.gain.setValueAtTime(0.4, now);
-            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+            osc.frequency.setValueAtTime(130 * randomPitch, now);
+            osc.frequency.exponentialRampToValueAtTime(35, now + 0.04);
+
+            oscGain.gain.setValueAtTime(0.4, now);
+            oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
+            noise.start(now);
             osc.start(now);
-            osc.stop(now + 0.05);
+            noise.stop(now + 0.045);
+            osc.stop(now + 0.045);
+
+        } else if (type === 'clicky') {
+            // 💙 青軸 (Clicky / 清脆金屬響片)：高通噪訊 + 高頻雙重彈片聲
+            noiseFilter.type = 'highpass';
+            noiseFilter.frequency.setValueAtTime(2200 * randomPitch, now);
+
+            noiseGain.gain.setValueAtTime(0.4, now);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
+
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(1800 * randomPitch, now);
+            osc.frequency.exponentialRampToValueAtTime(350, now + 0.02);
+
+            oscGain.gain.setValueAtTime(0.3, now);
+            oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+
+            noise.start(now);
+            osc.start(now);
+            noise.stop(now + 0.03);
+            osc.stop(now + 0.03);
+
         } else if (type === 'magnetic') {
-            // 磁軸：極簡短、清脆的撞擊金屬聲
-            osc.type = 'square';
-            osc.frequency.setValueAtTime(800, now);
-            osc.frequency.exponentialRampToValueAtTime(150, now + 0.02);
-            gain.gain.setValueAtTime(0.25, now);
-            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+            // ⚡ 磁軸 (Crisp Clack / 觸底快速短促)：窄頻撞擊噪訊 + 硬質底板共振
+            noiseFilter.type = 'bandpass';
+            noiseFilter.frequency.setValueAtTime(1600 * randomPitch, now);
+            noiseFilter.Q.setValueAtTime(3.0, now);
+
+            noiseGain.gain.setValueAtTime(0.6, now);
+            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(320 * randomPitch, now);
+            osc.frequency.exponentialRampToValueAtTime(70, now + 0.02);
+
+            oscGain.gain.setValueAtTime(0.35, now);
+            oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+
+            noise.start(now);
             osc.start(now);
-            osc.stop(now + 0.02);
+            noise.stop(now + 0.025);
+            osc.stop(now + 0.025);
         }
     }
 
-    // 鍵盤 UI 佈局生成
     const keyboardLayout = [
         ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
         ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
@@ -332,7 +387,6 @@
     }
     buildKeyboard();
 
-    // 打字核心邏輯
     let targetText = "";
     let currentIndex = 0;
     let startTime = null;
@@ -360,7 +414,6 @@
         timeEl.innerText = "0s";
         errorsEl.innerText = "0";
 
-        // 渲染字元
         textDisplay.innerHTML = "";
         targetText.split('').forEach((char, idx) => {
             const span = document.createElement('span');
@@ -370,24 +423,18 @@
         });
     }
 
-    // 鍵盤與打字事件監聽
     window.addEventListener('keydown', (e) => {
-        // 防止空白鍵讓網頁滾動
         if (e.code === 'Space') e.preventDefault();
 
-        // 高亮虛擬鍵盤
         const keyEl = document.querySelector(`.key[data-key="${e.code}"]`);
         if (keyEl) {
             keyEl.classList.add('pressed');
         }
 
-        // 播放自訂軸體聲音
         playKeySound(switchSelect.value);
 
-        // 如果是測試控制鍵（如 Tab、CapsLock 等）不計入打字
         if (e.key.length > 1 && e.key !== 'Backspace' && e.key !== ' ') return;
 
-        // 開始計時
         if (!startTime) {
             startTime = new Date();
             timerInterval = setInterval(updateStats, 100);
@@ -422,7 +469,6 @@
             if (currentIndex < targetText.length) {
                 charSpans[currentIndex].classList.add('current');
             } else {
-                // 完成測試
                 clearInterval(timerInterval);
                 updateStats();
             }
@@ -436,13 +482,11 @@
         }
     });
 
-    // 數據即時計算 (WPM & Accuracy)
     function updateStats() {
         if (!startTime) return;
         const elapsedSeconds = Math.max((new Date() - startTime) / 1000, 1);
         timeEl.innerText = `${Math.floor(elapsedSeconds)}s`;
 
-        // 1 Words = 一般習慣計算為 5 個字元
         const wordsTyped = (currentIndex - errorCount) / 5;
         const wpm = Math.max(0, Math.round((wordsTyped / elapsedSeconds) * 60));
         wpmEl.innerText = wpm;
@@ -453,8 +497,6 @@
     }
 
     document.getElementById('reset-btn').addEventListener('click', startTest);
-
-    // 初始化
     startTest();
 </script>
 </body>

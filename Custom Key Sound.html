@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Custom Key Sound & Typing Trainer</title>
+    <style>
+        :root {
+            --bg-color: #0f111a;
+            --card-bg: #1a1d2e;
+            --accent-glow: #00ffcc;
+            --key-bg: #272c47;
+            --key-pressed: #00ffcc;
+            --text-color: #e0e6ed;
+            --correct-color: #00ffaa;
+            --error-color: #ff4757;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Consolas', 'Courier New', monospace, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        /* RGB 動態外框容器 */
+        .container {
+            position: relative;
+            background: var(--card-bg);
+            border-radius: 16px;
+            padding: 30px;
+            width: 100%;
+            max-width: 900px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            overflow: hidden;
+        }
+
+        .container::before {
+            content: '';
+            position: absolute;
+            top: -2px; left: -2px; right: -2px; bottom: -2px;
+            background: linear-gradient(45deg, #ff0055, #7000ff, #00ffff, #ff0055);
+            background-size: 400%;
+            z-index: -1;
+            border-radius: 18px;
+            animation: rgb-glow 12s linear infinite;
+        }
+
+        @keyframes rgb-glow {
+            0% { background-position: 0 0; }
+            50% { background-position: 400% 0; }
+            100% { background-position: 0 0; }
+        }
+
+        header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 25px;
+        }
+
+        h1 {
+            font-size: 1.5rem;
+            color: #fff;
+            text-shadow: 0 0 10px var(--accent-glow);
+        }
+
+        /* 控制列 */
+        .controls {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        select, button {
+            background: #232840;
+            color: #fff;
+            border: 1px solid #3b4266;
+            padding: 8px 16px;
+            border-radius: 8px;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.2s;
+        }
+
+        select:hover, button:hover {
+            border-color: var(--accent-glow);
+            box-shadow: 0 0 8px var(--accent-glow);
+        }
+
+        /* 數據儀表板 */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+
+        .stat-card {
+            background: #202438;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            border-bottom: 3px solid #3b4266;
+        }
+
+        .stat-value {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: var(--accent-glow);
+        }
+
+        .stat-label {
+            font-size: 0.8rem;
+            color: #8892b0;
+            margin-top: 5px;
+        }
+
+        /* 文本測試區 */
+        .text-display {
+            background: #131522;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 1.3rem;
+            line-height: 1.8;
+            letter-spacing: 1px;
+            margin-bottom: 30px;
+            min-height: 100px;
+            user-select: none;
+            word-wrap: break-word;
+        }
+
+        .char { position: relative; }
+        .char.correct { color: var(--correct-color); }
+        .char.incorrect { color: var(--error-color); background: rgba(255, 71, 87, 0.2); border-radius: 2px; }
+        .char.current {
+            border-bottom: 3px solid var(--accent-glow);
+            animation: blink 0.8s infinite;
+        }
+
+        @keyframes blink {
+            50% { border-color: transparent; }
+        }
+
+        /* 模擬 60% 鍵盤視覺效果 */
+        .keyboard {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            background: #11131f;
+            padding: 15px;
+            border-radius: 12px;
+            box-shadow: inset 0 0 10px rgba(0,0,0,0.8);
+        }
+
+        .key-row {
+            display: flex;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .key {
+            background: var(--key-bg);
+            color: #a0aec0;
+            border-radius: 6px;
+            height: 45px;
+            min-width: 42px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 0.9rem;
+            box-shadow: 0 4px 0 #181b2c;
+            transition: all 0.05s ease;
+            user-select: none;
+        }
+
+        .key.space { width: 260px; }
+
+        /* 鍵帽按下與 RGB 觸發動畫 */
+        .key.pressed {
+            transform: translateY(4px);
+            box-shadow: 0 0 0 #181b2c;
+            background: var(--accent-glow);
+            color: #0f111a;
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <h1>⌨️ KeySound & Typing Trainer</h1>
+        <div class="controls">
+            <label for="switch-select">軸體聲效：</label>
+            <select id="switch-select">
+                <option value="magnetic">⚡ 磁軸 (Magnetic Crisp Clack)</option>
+                <option value="clicky">💙 青軸 (Clicky Switch)</option>
+                <option value="linear">❤️ 紅軸 (Linear Soft Thock)</option>
+            </select>
+            <button id="reset-btn">🔄 重置測試</button>
+        </div>
+    </header>
+
+    <!-- 數據分析 -->
+    <div class="stats-bar">
+        <div class="stat-card">
+            <div class="stat-value" id="wpm">0</div>
+            <div class="stat-label">WPM (字/分)</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="accuracy">100%</div>
+            <div class="stat-label">精準度 Accuracy</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="time">0s</div>
+            <div class="stat-label">時間 Elapsed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value" id="errors">0</div>
+            <div class="stat-label">錯誤數 Errors</div>
+        </div>
+    </div>
+
+    <!-- 打字文字顯示區域 -->
+    <div class="text-display" id="text-display"></div>
+
+    <!-- 虛擬 60% 鍵盤 -->
+    <div class="keyboard">
+        <div class="key-row" id="row-1"></div>
+        <div class="key-row" id="row-2"></div>
+        <div class="key-row" id="row-3"></div>
+        <div class="key-row" id="row-4"></div>
+        <div class="key-row">
+            <div class="key space" data-key="Space">Space</div>
+        </div>
+    </div>
+</div>
+
+<script>
+    // 預設測試文本 (可替換為任意英文短句或程式碼)
+    const sampleTexts = [
+        "quick brown fox jumps over the lazy dog near the mechanical keyboard workstation.",
+        "rapid trigger technology allows competitive gamers to execute precise key presses effortlessly.",
+        "custom mechanical switches deliver satisfying tactile feedback and crisp acoustic sound profiles."
+    ];
+
+    // Web Audio API 聲音合成器 (無需外部 MP3 檔案)
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    let audioCtx = null;
+
+    function initAudio() {
+        if (!audioCtx) {
+            audioCtx = new AudioContext();
+        }
+    }
+
+    // 動態生成軸體聲音
+    function playKeySound(type) {
+        initAudio();
+        if (audioCtx.state === 'suspended') {
+            audioCtx.resume();
+        }
+
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        if (type === 'clicky') {
+            // 青軸：高頻、脆皮雙重 Click 聲
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(1200, now);
+            osc.frequency.exponentialRampToValueAtTime(300, now + 0.03);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.03);
+            osc.start(now);
+            osc.stop(now + 0.03);
+        } else if (type === 'linear') {
+            // 紅軸：低沉、沉穩的 Thock 觸底聲
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(180, now);
+            osc.frequency.exponentialRampToValueAtTime(60, now + 0.05);
+            gain.gain.setValueAtTime(0.4, now);
+            gain.gain.exponentialRampToValueAtTime(0.01, now + 0.05);
+            osc.start(now);
+            osc.stop(now + 0.05);
+        } else if (type === 'magnetic') {
+            // 磁軸：極簡短、清脆的撞擊金屬聲
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(800, now);
+            osc.frequency.exponentialRampToValueAtTime(150, now + 0.02);
+            gain.gain.setValueAtTime(0.25, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+            osc.start(now);
+            osc.stop(now + 0.02);
+        }
+    }
+
+    // 鍵盤 UI 佈局生成
+    const keyboardLayout = [
+        ["Q", "W", "E", "R", "T", "Y", "U", "I", "O", "P"],
+        ["A", "S", "D", "F", "G", "H", "J", "K", "L"],
+        ["Z", "X", "C", "V", "B", "N", "M"]
+    ];
+
+    function buildKeyboard() {
+        keyboardLayout.forEach((row, idx) => {
+            const rowDiv = document.getElementById(`row-${idx + 1}`);
+            row.forEach(char => {
+                const keyDiv = document.createElement('div');
+                keyDiv.className = 'key';
+                keyDiv.innerText = char;
+                keyDiv.setAttribute('data-key', `Key${char}`);
+                rowDiv.appendChild(keyDiv);
+            });
+        });
+    }
+    buildKeyboard();
+
+    // 打字核心邏輯
+    let targetText = "";
+    let currentIndex = 0;
+    let startTime = null;
+    let timerInterval = null;
+    let totalTyped = 0;
+    let errorCount = 0;
+
+    const textDisplay = document.getElementById('text-display');
+    const wpmEl = document.getElementById('wpm');
+    const accuracyEl = document.getElementById('accuracy');
+    const timeEl = document.getElementById('time');
+    const errorsEl = document.getElementById('errors');
+    const switchSelect = document.getElementById('switch-select');
+
+    function startTest() {
+        targetText = sampleTexts[Math.floor(Math.random() * sampleTexts.length)];
+        currentIndex = 0;
+        startTime = null;
+        totalTyped = 0;
+        errorCount = 0;
+        clearInterval(timerInterval);
+        
+        wpmEl.innerText = "0";
+        accuracyEl.innerText = "100%";
+        timeEl.innerText = "0s";
+        errorsEl.innerText = "0";
+
+        // 渲染字元
+        textDisplay.innerHTML = "";
+        targetText.split('').forEach((char, idx) => {
+            const span = document.createElement('span');
+            span.className = 'char' + (idx === 0 ? ' current' : '');
+            span.innerText = char;
+            textDisplay.appendChild(span);
+        });
+    }
+
+    // 鍵盤與打字事件監聽
+    window.addEventListener('keydown', (e) => {
+        // 防止空白鍵讓網頁滾動
+        if (e.code === 'Space') e.preventDefault();
+
+        // 高亮虛擬鍵盤
+        const keyEl = document.querySelector(`.key[data-key="${e.code}"]`);
+        if (keyEl) {
+            keyEl.classList.add('pressed');
+        }
+
+        // 播放自訂軸體聲音
+        playKeySound(switchSelect.value);
+
+        // 如果是測試控制鍵（如 Tab、CapsLock 等）不計入打字
+        if (e.key.length > 1 && e.key !== 'Backspace' && e.key !== ' ') return;
+
+        // 開始計時
+        if (!startTime) {
+            startTime = new Date();
+            timerInterval = setInterval(updateStats, 100);
+        }
+
+        const charSpans = textDisplay.querySelectorAll('.char');
+
+        if (e.key === 'Backspace') {
+            if (currentIndex > 0) {
+                charSpans[currentIndex].classList.remove('current', 'correct', 'incorrect');
+                currentIndex--;
+                charSpans[currentIndex].classList.remove('correct', 'incorrect');
+                charSpans[currentIndex].classList.add('current');
+            }
+            return;
+        }
+
+        if (currentIndex < targetText.length) {
+            totalTyped++;
+            const expectedChar = targetText[currentIndex];
+
+            if (e.key === expectedChar) {
+                charSpans[currentIndex].classList.add('correct');
+            } else {
+                charSpans[currentIndex].classList.add('incorrect');
+                errorCount++;
+            }
+
+            charSpans[currentIndex].classList.remove('current');
+            currentIndex++;
+
+            if (currentIndex < targetText.length) {
+                charSpans[currentIndex].classList.add('current');
+            } else {
+                // 完成測試
+                clearInterval(timerInterval);
+                updateStats();
+            }
+        }
+    });
+
+    window.addEventListener('keyup', (e) => {
+        const keyEl = document.querySelector(`.key[data-key="${e.code}"]`);
+        if (keyEl) {
+            keyEl.classList.remove('pressed');
+        }
+    });
+
+    // 數據即時計算 (WPM & Accuracy)
+    function updateStats() {
+        if (!startTime) return;
+        const elapsedSeconds = Math.max((new Date() - startTime) / 1000, 1);
+        timeEl.innerText = `${Math.floor(elapsedSeconds)}s`;
+
+        // 1 Words = 一般習慣計算為 5 個字元
+        const wordsTyped = (currentIndex - errorCount) / 5;
+        const wpm = Math.max(0, Math.round((wordsTyped / elapsedSeconds) * 60));
+        wpmEl.innerText = wpm;
+
+        const accuracy = totalTyped > 0 ? Math.round(((totalTyped - errorCount) / totalTyped) * 100) : 100;
+        accuracyEl.innerText = `${Math.max(0, accuracy)}%`;
+        errorsEl.innerText = errorCount;
+    }
+
+    document.getElementById('reset-btn').addEventListener('click', startTest);
+
+    // 初始化
+    startTest();
+</script>
+</body>
+</html>

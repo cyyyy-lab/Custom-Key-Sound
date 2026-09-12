@@ -204,11 +204,15 @@
     <header>
         <h1>⌨️ KeySound & Typing Trainer</h1>
         <div class="controls">
-            <label for="switch-select">軸體聲效：</label>
+            <label for="switch-select">聲音選擇：</label>
             <select id="switch-select">
                 <option value="magnetic">⚡ 磁軸 (Magnetic Crisp Clack)</option>
                 <option value="clicky">💙 青軸 (Clicky Switch)</option>
                 <option value="linear">❤️ 紅軸 (Linear Soft Thock)</option>
+                <option value="dog">🐶 狗叫 (Dog Bark)</option>
+                <option value="cat">🐱 貓叫 (Cat Meow)</option>
+                <option value="bird">🐦 鳥叫 (Bird Chirp)</option>
+                <option value="duck">🦆 鴨叫 (Duck Quack)</option>
             </select>
             <button id="reset-btn">🔄 重置測試</button>
         </div>
@@ -263,7 +267,6 @@
     function initAudio() {
         if (!audioCtx) {
             audioCtx = new AudioContext();
-            // 建立 0.05 秒白噪聲緩衝區（模擬塑料與金屬撞擊雜音）
             const bufferSize = audioCtx.sampleRate * 0.05;
             noiseBuffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
             const output = noiseBuffer.getChannelData(0);
@@ -273,7 +276,7 @@
         }
     }
 
-    // 物理建模音效引擎
+    // 音效合成引擎
     function playKeySound(type) {
         initAudio();
         if (audioCtx.state === 'suspended') {
@@ -281,89 +284,148 @@
         }
 
         const now = audioCtx.currentTime;
-        // 加入 ±5% 隨機音調與頻率微變，消除機械重複感
-        const randomPitch = 0.95 + Math.random() * 0.1;
+        const randomPitch = 0.95 + Math.random() * 0.1; // ±5% 隨機音調
 
-        // 1. 撞擊噪訊層 (Impact Noise)
-        const noise = audioCtx.createBufferSource();
-        noise.buffer = noiseBuffer;
-        noise.playbackRate.value = randomPitch;
-
-        const noiseFilter = audioCtx.createBiquadFilter();
-        const noiseGain = audioCtx.createGain();
-
-        // 2. 腔體共振層 (Housing Resonance / Thock)
         const osc = audioCtx.createOscillator();
-        const oscGain = audioCtx.createGain();
+        const gain = audioCtx.createGain();
 
-        noise.connect(noiseFilter);
-        noiseFilter.connect(noiseGain);
-        noiseGain.connect(audioCtx.destination);
-
-        osc.connect(oscGain);
-        oscGain.connect(audioCtx.destination);
-
-        if (type === 'linear') {
-            // ❤️ 紅軸 (Thock / 沉穩厚重)：低頻帶通噪訊 + 低頻波形共振
-            noiseFilter.type = 'bandpass';
-            noiseFilter.frequency.setValueAtTime(700 * randomPitch, now);
-            noiseFilter.Q.setValueAtTime(1.8, now);
-
-            noiseGain.gain.setValueAtTime(0.5, now);
-            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
-
-            osc.type = 'sine';
-            osc.frequency.setValueAtTime(130 * randomPitch, now);
-            osc.frequency.exponentialRampToValueAtTime(35, now + 0.04);
-
-            oscGain.gain.setValueAtTime(0.4, now);
-            oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
-
-            noise.start(now);
-            osc.start(now);
-            noise.stop(now + 0.045);
-            osc.stop(now + 0.045);
-
-        } else if (type === 'clicky') {
-            // 💙 青軸 (Clicky / 清脆金屬響片)：高通噪訊 + 高頻雙重彈片聲
-            noiseFilter.type = 'highpass';
-            noiseFilter.frequency.setValueAtTime(2200 * randomPitch, now);
-
-            noiseGain.gain.setValueAtTime(0.4, now);
-            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
-
-            osc.type = 'triangle';
-            osc.frequency.setValueAtTime(1800 * randomPitch, now);
-            osc.frequency.exponentialRampToValueAtTime(350, now + 0.02);
-
-            oscGain.gain.setValueAtTime(0.3, now);
-            oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
-
-            noise.start(now);
-            osc.start(now);
-            noise.stop(now + 0.03);
-            osc.stop(now + 0.03);
-
-        } else if (type === 'magnetic') {
-            // ⚡ 磁軸 (Crisp Clack / 觸底快速短促)：窄頻撞擊噪訊 + 硬質底板共振
-            noiseFilter.type = 'bandpass';
-            noiseFilter.frequency.setValueAtTime(1600 * randomPitch, now);
-            noiseFilter.Q.setValueAtTime(3.0, now);
-
-            noiseGain.gain.setValueAtTime(0.6, now);
-            noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
-
-            osc.type = 'triangle';
+        if (type === 'dog') {
+            // 🐶 狗叫：鋸齒波 + 低音速降 (Bark)
+            osc.type = 'sawtooth';
             osc.frequency.setValueAtTime(320 * randomPitch, now);
-            osc.frequency.exponentialRampToValueAtTime(70, now + 0.02);
+            osc.frequency.exponentialRampToValueAtTime(100 * randomPitch, now + 0.11);
 
-            oscGain.gain.setValueAtTime(0.35, now);
-            oscGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'lowpass';
+            filter.frequency.setValueAtTime(1100, now);
 
-            noise.start(now);
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            gain.gain.setValueAtTime(0.5, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.11);
+
             osc.start(now);
-            noise.stop(now + 0.025);
-            osc.stop(now + 0.025);
+            osc.stop(now + 0.11);
+
+        } else if (type === 'cat') {
+            // 🐱 貓叫：正弦波 + 音高升降 (M-e-o-w)
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(550 * randomPitch, now);
+            osc.frequency.linearRampToValueAtTime(850 * randomPitch, now + 0.07);
+            osc.frequency.exponentialRampToValueAtTime(450 * randomPitch, now + 0.18);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            gain.gain.setValueAtTime(0.01, now);
+            gain.gain.linearRampToValueAtTime(0.35, now + 0.04);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+
+            osc.start(now);
+            osc.stop(now + 0.18);
+
+        } else if (type === 'bird') {
+            // 🐦 鳥叫：極高頻 Rapid Chirp 掃頻
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(2800 * randomPitch, now);
+            osc.frequency.linearRampToValueAtTime(4300 * randomPitch, now + 0.03);
+            osc.frequency.exponentialRampToValueAtTime(2200 * randomPitch, now + 0.06);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+
+            osc.start(now);
+            osc.stop(now + 0.06);
+
+        } else if (type === 'duck') {
+            // 🦆 鴨叫：方波 + 窄頻帶通濾波 (Quack 鼻音)
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(380 * randomPitch, now);
+            osc.frequency.exponentialRampToValueAtTime(190 * randomPitch, now + 0.1);
+
+            const filter = audioCtx.createBiquadFilter();
+            filter.type = 'bandpass';
+            filter.frequency.setValueAtTime(900 * randomPitch, now);
+            filter.Q.setValueAtTime(3.5, now);
+
+            osc.connect(filter);
+            filter.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            gain.gain.setValueAtTime(0.4, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.1);
+
+            osc.start(now);
+            osc.stop(now + 0.1);
+
+        } else {
+            // 軸體音效處理 (Magnetic / Clicky / Linear)
+            const noise = audioCtx.createBufferSource();
+            noise.buffer = noiseBuffer;
+            noise.playbackRate.value = randomPitch;
+
+            const noiseFilter = audioCtx.createBiquadFilter();
+            const noiseGain = audioCtx.createGain();
+
+            noise.connect(noiseFilter);
+            noiseFilter.connect(noiseGain);
+            noiseGain.connect(audioCtx.destination);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'linear') {
+                noiseFilter.type = 'bandpass';
+                noiseFilter.frequency.setValueAtTime(700 * randomPitch, now);
+                noiseFilter.Q.setValueAtTime(1.8, now);
+                noiseGain.gain.setValueAtTime(0.5, now);
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(130 * randomPitch, now);
+                osc.frequency.exponentialRampToValueAtTime(35, now + 0.04);
+                gain.gain.setValueAtTime(0.4, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.04);
+
+                noise.start(now); osc.start(now);
+                noise.stop(now + 0.045); osc.stop(now + 0.045);
+
+            } else if (type === 'clicky') {
+                noiseFilter.type = 'highpass';
+                noiseFilter.frequency.setValueAtTime(2200 * randomPitch, now);
+                noiseGain.gain.setValueAtTime(0.4, now);
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.025);
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(1800 * randomPitch, now);
+                osc.frequency.exponentialRampToValueAtTime(350, now + 0.02);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+
+                noise.start(now); osc.start(now);
+                noise.stop(now + 0.03); osc.stop(now + 0.03);
+
+            } else if (type === 'magnetic') {
+                noiseFilter.type = 'bandpass';
+                noiseFilter.frequency.setValueAtTime(1600 * randomPitch, now);
+                noiseFilter.Q.setValueAtTime(3.0, now);
+                noiseGain.gain.setValueAtTime(0.6, now);
+                noiseGain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(320 * randomPitch, now);
+                osc.frequency.exponentialRampToValueAtTime(70, now + 0.02);
+                gain.gain.setValueAtTime(0.35, now);
+                gain.gain.exponentialRampToValueAtTime(0.001, now + 0.02);
+
+                noise.start(now); osc.start(now);
+                noise.stop(now + 0.025); osc.stop(now + 0.025);
+            }
         }
     }
 
